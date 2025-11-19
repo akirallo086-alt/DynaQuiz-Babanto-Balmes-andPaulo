@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JavaScript & jQuery Scrollable Progressive Quiz</title>
+<!-- Load Tailwind CSS for modern design and responsiveness -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Load jQuery -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+
+<!-- Load Baloo 2 font (Cute and Bold) -->
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700;800&display=swap" rel="stylesheet">
+<!-- Load Lucide Icons -->
+<script src="https://unpkg.com/lucide@latest"></script>
+
+<style>
+    /* Custom font stack using the cute and bold Baloo 2 */
+    body {
+        font-family: 'Baloo 2', cursive, sans-serif;
+    }
+
+    /* Style for the currently selected answer (before submission) */
+    .choice-btn.selected {
+        background-color: #c7d2fe !important; /* indigo-200 */
+        border-color: #4f46e5 !important; /* indigo-600 */
+        color: #1e3a8a !important; /* indigo-900 */
+        font-weight: 700 !important;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    }
+    
+    /* Styles for the "Blurred"/Submitted State (Past questions) */
+    .question-card.submitted {
+        background-color: #f3f4f6; /* gray-100 */
+        opacity: 0.5 !important; /* Ensure opacity change is visible */
+        pointer-events: none; /* Disables all interactions */
+        border-top-color: #9ca3af; /* gray-400 */
+        filter: blur(8px) !important; 
+    }
+
+    /* NEW STYLE: Styles for "Future"/Locked State (Future questions) */
+    .question-card.future-lock {
+        background-color: #f3f4f6; /* gray-100 */
+        opacity: 0.5 !important;
+        pointer-events: none;
+        border-top-color: #9ca3af; /* gray-400 */
+        filter: blur(8px) !important; 
+    }
+
+    /* Final Feedback Colors (after quiz completion) */
+    .correct-final { 
+        background-color: #dcfce7 !important; /* green-100 */
+        border-color: #22c55e !important; /* green-500 */
+        color: #166534 !important; /* green-800 */
+        font-weight: 700 !important; 
+        opacity: 1 !important; /* Restore full opacity for results */
+        filter: none !important; /* Remove blur for final review */
+    }
+    .wrong-final { 
+        background-color: #fee2e2 !important; /* red-100 */
+        border-color: #ef4444 !important; /* red-500 */
+        color: #991b1b !important; /* red-800 */
+        font-weight: 700 !important; 
+        opacity: 1 !important; /* Restore full opacity for results */
+        filter: none !important; /* Remove blur for final review */
+    }
+</style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 to-purple-100 min-h-screen p-4">
+
+<div class="quiz-wrapper max-w-2xl mx-auto my-8">
+    
+    <!-- Quiz Header (Sticky on top) -->
+    <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl mb-6 transition-all duration-300 border-t-8 border-indigo-600 sticky top-0 z-10">
+        <div class="flex justify-between items-center">
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-800">JavaScript & jQuery Quiz</h1>
+            <div id="progress-indicator" class="text-lg font-semibold text-indigo-600">
+                <span id="answered-q">0</span> / <span id="total-q">15</span> Answered
+            </div>
+        </div>
+        <p class="text-indigo-500 font-medium text-md mt-1">Test Your Knowledge</p>
+    </div>
+
+    <!-- QUESTIONS CONTAINER -->
+    <div id="quiz-questions" class="space-y-6">
+        <!-- Question Cards will be dynamically inserted here -->
+    </div>
+    
+    <!-- Final Submission Container (Only used when ALL questions are locked) -->
+    <div id="final-submit-container" class="text-center mt-6 p-4 hidden">
+        <!-- Dynamic Submit Button will be moved here for final submission -->
+    </div>
+
+    <!-- Result Card (Hidden until complete) -->
+    <div id="result-container" class="result-card hidden bg-white p-8 rounded-xl shadow-2xl mt-8 text-center border-t-8 border-green-600">
+        <h2 class="text-2xl font-bold text-green-700 mb-3">Quiz Complete!</h2>
+        <p class="text-gray-600 text-lg">Your Final Score:</p>
+        <h2 id="final-score" class="text-6xl font-extrabold text-indigo-600 mt-2 tracking-wider"></h2>
+        <button id="restart-btn" class="mt-6 px-8 py-3 bg-green-600 text-white font-bold rounded-full hover:bg-green-700 transition duration-200 shadow-lg shadow-green-400/50">
+            Restart Quiz
+        </button>
+    </div>
+</div>
+
+<script>
+let userAnswers = []; // Array to store {selected: string, correct: string}
+let submittedState = []; // Tracks which questions have been locked/submitted
+let answeredCount = 0;
+const choiceLabels = ['a', 'b', 'c', 'd'];
+let $submitBtn; // Global jQuery object for the movable button
+
+const quizData = [
+    {q:"Which HTML tag is used to include JavaScript code?", a:["js","javascript","script","code"], c:"script"},
+    {q:"How do you write a message to the browser console?", a:["console.write()","log.console()","console.log()","print()"], c:"console.log()"},
+    {q:"How do you create a function named 'myFunction' in JavaScript?", a:["function myFunction {}","function myFunction()","create myFunction()","func myFunction()"], c:"function myFunction()"},
+    {q:"Which operator is used to assign a value to a variable?", a:["+","=","===","*"], c:"="},
+    {q:"What is the most common way to declare a variable in modern JavaScript?", a:["variable x","v x","let x","new x"], c:"let x"},
+    {q:"What does the strict equality operator '===' mean in JavaScript?", a:["Compare values only","Assign value","Compare value and type","Compare type only"], c:"Compare value and type"},
+    {q:"How do you show an alert box?", a:["show('Hello')","alert('Hello')","message('Hello')","popup('Hello')"], c:"alert('Hello')"},
+    {q:"Which method converts a string to an integer?", a:["int()","parseFloat()","parseInt()","stringToNumber()"], c:"parseInt()"},
+    {q:"How do you write a single-line comment in JavaScript?", a:["<!-- comment -->","// comment","/* comment */","## comment"], c:"// comment"},
+    {q:"Which of the following correctly defines a JavaScript array?", a:["let x = (1, 2, 3)","let x = {1: 1, 2: 2, 3: 3}","let x = [1, 2, 3]","let x = '1, 2, 3'"], c:"let x = [1, 2, 3]"},
+    {q:"What primary symbol is used as a shortcut for the jQuery library?", a:["#","$","&","@"], c:"$"},
+    {q:"Which is the correct jQuery way to select an element with the ID 'box'?", a:["$('#box')","$('box')","$('.box')","document.getElementById('box')"], c:"$('#box')"},
+    {q:"How do you hide a paragraph element using jQuery?", a:["$('p').makeHidden()","$('p').hide()","$('p').invisible()","$('p').displayNone()"], c:"$('p').hide()"},
+    {q:"What is the correct jQuery syntax to ensure code runs after the document structure is fully loaded?", a:["$(document.onload(function(){}))","$(ready(function(){}))","$(document).ready(function(){})","$(document.onLoad())"], c:"$(document.ready(function(){}))"},
+    {q:"How do you add a click event to a button with the class 'btn' using jQuery?", a:["$('.btn').onClick(function(){})","$('.btn').click(function(){})","click($('.btn'), function(){})","click('btn', function(){})"], c:"$('.btn').click(function(){})"}
+];
+
+// --- Initialization of Movable Button ---
+
+/**
+ * Creates and stores the submit button element as a global jQuery object.
+ * The event listener is attached once and persists when the element is moved.
+ */
+function createSubmitButton() {
+    $submitBtn = $('<button>')
+        .prop('id', 'submit-btn')
+        .addClass('px-10 py-4 bg-green-600 text-white font-bold rounded-xl text-xl transition duration-200 shadow-lg shadow-green-400/50 hover:bg-green-700 disabled:opacity-50 mt-6 block w-full sm:w-auto mx-auto')
+        .prop('disabled', true)
+        .html('Submit Answer & Scroll <i data-lucide="chevrons-down" class="ml-2 w-5 h-5 inline-block"></i>')
+        // We use .off().on() to ensure the handler is only attached once, even if this function runs multiple times
+        .off('click', handleSubmit).on('click', handleSubmit); 
+}
+
+// --- Rendering and Structure ---
+
+/**
+ * Creates a single, complete question card HTML element.
+ */
+function createQuestionCard(qData, index) {
+    const questionNumber = index + 1;
+
+    const $card = $('<div>', { 
+        id: `card-${index}`,
+        class: 'question-card bg-white p-6 sm:p-8 rounded-xl shadow-lg border-t-8 border-indigo-400 transition-all duration-300'
+    });
+
+    // Question Text
+    $card.append(
+        $('<h2>', {
+            class: 'question-text text-xl font-extrabold text-gray-800 mb-6',
+            text: `${questionNumber}. ${qData.q}`
+        })
+    );
+
+    // Answers Container
+    const $answers = $('<div>', { class: 'answers-container space-y-3' });
+    
+    const answers = qData.a; 
+
+    answers.forEach((answer, i) => {
+        const $btn = $('<button>')
+            .text(`${choiceLabels[i].toUpperCase()}) ${answer}`)
+            .attr('data-answer', answer)
+            .attr('data-q-index', index)
+            .prop('id', `q${index}-a${i}`)
+            .addClass('choice-btn block w-full text-left p-4 rounded-lg border border-gray-200 bg-white text-gray-800 font-semibold cursor-pointer transition duration-150 hover:bg-indigo-50 hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50')
+            .on('click', function() {
+                handleAnswerSelection(index, $(this));
+            });
+        $answers.append($btn);
+    });
+    
+    const $footer = $('<div>', { class: 'card-footer text-center' }); // New container for the submit button
+    
+    $card.append($answers); 
+    $card.append($footer); 
+    
+    return $card;
+}
+
+/**
+ * Renders all question cards to the page.
+ */
+function renderQuiz() {
+    $('#quiz-questions').empty();
+    quizData.forEach((qData, index) => {
+        const $card = createQuestionCard(qData, index);
+        
+        // Only apply the 'submitted' state (blur) if it was already submitted/locked
+        if (submittedState[index]) {
+            lockQuestionCard(index);
+        } else if (userAnswers[index]) {
+            // Re-apply selection highlight if answered but not yet submitted/locked
+            const selected = userAnswers[index].selected;
+            $card.find(`.choice-btn[data-answer="${selected}"]`).addClass('selected');
+        }
+
+        $('#quiz-questions').append($card);
+    });
+
+    updateProgress();
+    // After rendering, update the flow state to enable only the active card's buttons
+    updateQuizFlowState(); 
+}
+
+
+// --- Interaction Logic ---
+
+/**
+ * Handles the user clicking an answer button (pre-submission).
+ */
+function handleAnswerSelection(index, $selectedBtn) {
+    // Only proceed if the card is NOT yet submitted/locked
+    if (submittedState[index]) return;
+
+    const qData = quizData[index];
+    const selected = $selectedBtn.attr('data-answer');
+    const $currentCard = $(`#card-${index}`);
+
+    // 1. Reset all buttons for this question (removing previous selection)
+    $currentCard.find('.choice-btn').removeClass('selected');
+
+    // 2. Save the user's NEW answer
+    userAnswers[index] = {
+        selected: selected,
+        correct: qData.c
+    };
+
+    // 3. Visually mark the NEWLY selected button
+    $selectedBtn.addClass('selected');
+    
+    // 4. If the selection is on the target card, update the submit button state
+    const firstUnsubmittedIndex = findFirstUnsubmittedIndex();
+    if (index === firstUnsubmittedIndex) {
+        updateQuizFlowState(); // Re-runs state update to enable submit button
+    }
+}
+
+/**
+ * Finds the index of the first question that is NOT submitted.
+ * Returns -1 if all questions are submitted.
+ */
+function findFirstUnsubmittedIndex() {
+    return submittedState.findIndex(isSubmitted => !isSubmitted);
+}
+
+/**
+ * Manages the position of the main submit button and the interactive state of the quiz cards.
+ * This function enforces the progressive flow:
+ * - Past questions are permanently locked/blurred (.submitted).
+ * - The current question (targetIndex) is unlocked/unblurred.
+ * - Future questions (Index > targetIndex) are locked/blurred (.future-lock).
+ */
+function updateQuizFlowState() {
+    const targetIndex = findFirstUnsubmittedIndex();
+    
+    // 1. Detach submit button from its current location
+    if ($submitBtn && $submitBtn.parent().length) {
+        $submitBtn.detach();
+    }
+    
+    // 2. Iterate and apply state to all cards
+    quizData.forEach((_, index) => {
+        const $card = $(`#card-${index}`);
+        const $btns = $card.find('.choice-btn');
+
+        // Clear all lock classes first
+        $card.removeClass('submitted future-lock');
+        $btns.prop('disabled', true).css('cursor', 'not-allowed');
+
+        if (index === targetIndex) {
+            // --- Active Card (Target) ---
+            $btns.prop('disabled', false).css('cursor', 'pointer');
+            $card.css({'opacity': 1, 'filter': 'none', 'pointer-events': 'auto'});
+        } else if (submittedState[index]) {
+            // --- Submitted/Locked Card (Past) ---
+            // Re-apply the submitted class for permanent lock/blur (opacity/filter set by CSS)
+            $card.addClass('submitted'); 
+            $card.css({'pointer-events': 'none'});
+        } else {
+            // --- Future Card (Index > targetIndex) ---
+            // Apply the future lock class to blur/lock future questions (opacity/filter set by CSS)
+            $card.addClass('future-lock');
+            $card.css({'pointer-events': 'none'});
+        }
+    });
+
+    if (targetIndex !== -1) {
+        // C. Position the Submit Button on the Active Card
+        const $targetCard = $(`#card-${targetIndex}`); 
+        $targetCard.find('.card-footer').empty().append($submitBtn);
+        
+        const hasAnswer = !!userAnswers[targetIndex];
+        
+        // D. Update submit button state
+        $submitBtn.prop('disabled', !hasAnswer);
+        $submitBtn.removeClass('hidden').html('Submit Answer & Scroll <i data-lucide="chevrons-down" class="ml-2 w-5 h-5 inline-block"></i>');
+        
+        $('#final-submit-container').addClass('hidden');
+        
+    } else {
+        // All questions submitted: final state
+        $('#final-submit-container').removeClass('hidden').empty().append($submitBtn);
+        $submitBtn.prop('disabled', false).html('Submit Quiz & View Results <i data-lucide="trophy" class="ml-2 w-5 h-5 inline-block"></i>');
+    }
+    
+    lucide.createIcons();
+}
+
+/**
+ * Applies the 'blur'/'lock' state to a question card.
+ */
+function lockQuestionCard(index) {
+    const $card = $(`#card-${index}`);
+    // Check if the card is already locked to prevent double counting on restart
+    if (!submittedState[index]) {
+        answeredCount++;
+    }
+    $card.addClass('submitted');
+    $card.removeClass('future-lock'); // Ensure any future lock is removed when submitted
+    $card.find('.choice-btn').prop('disabled', true);
+    submittedState[index] = true;
+    updateProgress();
+}
+
+
+/**
+ * Handles the user clicking the main submit button, locking the current question and scrolling.
+ */
+function handleSubmit() {
+    const targetIndex = findFirstUnsubmittedIndex();
+
+    if (targetIndex === -1) {
+        // All questions are answered and submitted, show final results
+        showResults();
+        return;
+    }
+    
+    // 1. Check if the target question has a selected answer
+    if (!userAnswers[targetIndex]) {
+        return; 
+    }
+
+    // 2. Lock the current question and mark it as submitted/blurred
+    lockQuestionCard(targetIndex);
+
+    // 3. Find the next question to scroll to (which is now the active one)
+    const nextTargetIndex = findFirstUnsubmittedIndex();
+
+    // 4. Update the state for the new active card (enables buttons, moves submit button, blurs future cards)
+    updateQuizFlowState();
+
+    if (nextTargetIndex !== -1) {
+        // 5. Scroll to the new active question
+        const $nextCard = $(`#card-${nextTargetIndex}`);
+        $('html, body').animate({
+            scrollTop: $nextCard.offset().top - 80 // Offset for sticky header
+        }, 500);
+    } else {
+        // Scroll to the final submit button area
+        $('html, body').animate({
+            scrollTop: $('#final-submit-container').offset().top - 80
+        }, 500);
+    }
+}
+
+/**
+ * Updates the score count in the header.
+ */
+function updateProgress() {
+    $('#answered-q').text(answeredCount);
+}
+
+/**
+ * Calculates the score and displays the final score and review mode.
+ */
+function showResults() {
+    let finalScore = 0;
+    
+    // 1. Tally the score
+    userAnswers.forEach(data => {
+        if (data && data.selected === data.correct) {
+            finalScore++;
+        }
+    });
+
+    // 2. Display the final score
+    $('#final-score').text(`${finalScore}/${quizData.length}`);
+    $('#result-container').removeClass('hidden');
+
+    // 3. Hide the main submit button
+    $('#final-submit-container').addClass('hidden');
+    
+    // 4. Scroll to the results
+    $('html, body').animate({
+        scrollTop: $('#result-container').offset().top - 20
+    }, 500);
+
+    // 5. Enter review mode: Lock answers and highlight correct/wrong
+    for (let i = 0; i < quizData.length; i++) {
+        const $card = $(`#card-${i}`);
+        const data = userAnswers[i];
+
+        // Remove all lock/blur states for result viewing
+        $card.removeClass('submitted future-lock');
+
+        if (data) {
+            const isCorrect = data.selected === data.correct;
+            
+            // Highlight user's chosen answer
+            $card.find(`.choice-btn[data-answer="${data.selected}"]`)
+                .removeClass('selected')
+                .addClass(isCorrect ? 'correct-final' : 'wrong-final');
+                
+            // Highlight the correct answer (if user was wrong)
+            if (!isCorrect) {
+                $card.find(`.choice-btn[data-answer="${data.correct}"]`).addClass('correct-final');
+            }
+        }
+        
+        // Remove the card footer (which contained the submit button) for cleanup
+        $card.find('.card-footer').remove();
+        
+        // All buttons should now be disabled for review
+        $card.find('.choice-btn').prop('disabled', true);
+    }
+}
+
+
+/**
+ * Initializes the quiz interface.
+ */
+function initQuiz() {
+    userAnswers = Array(quizData.length).fill(null); 
+    submittedState = Array(quizData.length).fill(false); 
+    answeredCount = 0;
+    
+    createSubmitButton(); 
+    
+    $('#total-q').text(quizData.length);
+    $('#result-container').addClass('hidden');
+    $('#final-submit-container').addClass('hidden');
+    
+    renderQuiz(); 
+    
+    // Scroll to the top of the first question
+    if ($('#card-0').length) {
+        $('html, body').animate({
+            scrollTop: $('#card-0').offset().top - 80
+        }, 300);
+    }
+}
+
+// --- Event Handlers ---
+$(document).ready(function() {
+    
+    // Initial setup
+    initQuiz();
+    lucide.createIcons();
+
+    // Restart button functionality
+    $('#restart-btn').on('click', function() {
+        initQuiz();
+    });
+});
+</script>
+</body>
+</html>
