@@ -4,14 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>QuizPop</title>
-<!-- Load Tailwind CSS for modern design and responsiveness -->
 <script src="https://cdn.tailwindcss.com"></script>
-<!-- Load jQuery -->
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 
-<!-- Load Baloo 2 font (Cute and Bold) -->
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700;800&display=swap" rel="stylesheet">
-<!-- Load Lucide Icons -->
 <script src="https://unpkg.com/lucide@latest"></script>
 
 <style>
@@ -38,7 +34,7 @@
         filter: blur(8px) !important; 
     }
 
-    /* NEW STYLE: Styles for "Future"/Locked State (Future questions) */
+    /* Styles for "Future"/Locked State (Future questions) */
     .question-card.future-lock {
         background-color: #f3f4f6; /* gray-100 */
         opacity: 0.5 !important;
@@ -70,7 +66,6 @@
 
 <div class="quiz-wrapper max-w-2xl mx-auto my-8">
     
-    <!-- Quiz Header (Sticky on top) -->
     <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl mb-6 transition-all duration-300 border-t-8 border-indigo-600 sticky top-0 z-10">
         <div class="flex justify-between items-center">
             <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-800">JavaScript & jQuery Quiz</h1>
@@ -81,24 +76,23 @@
         <p class="text-indigo-500 font-medium text-md mt-1">Test Your Knowledge</p>
     </div>
 
-    <!-- QUESTIONS CONTAINER -->
     <div id="quiz-questions" class="space-y-6">
-        <!-- Question Cards will be dynamically inserted here -->
-    </div>
+        </div>
     
-    <!-- Final Submission Container (Only used when ALL questions are locked) -->
     <div id="final-submit-container" class="text-center mt-6 p-4 hidden">
-        <!-- Dynamic Submit Button will be moved here for final submission -->
+        </div>
+    
+    <div id="permanent-controls" class="text-center mt-10 p-6 bg-white rounded-xl shadow-lg border-t-4 border-red-300">
+        <h3 class="text-xl font-bold text-gray-700 mb-3">Want to try again?</h3>
+        <button id="restart-btn" class="px-8 py-3 bg-red-600 text-white font-bold rounded-full hover:bg-red-700 transition duration-200 shadow-lg shadow-red-400/50">
+            <i data-lucide="rotate-ccw" class="mr-2 w-5 h-5 inline-block"></i> Reset Quiz
+        </button>
     </div>
 
-    <!-- Result Card (Hidden until complete) -->
     <div id="result-container" class="result-card hidden bg-white p-8 rounded-xl shadow-2xl mt-8 text-center border-t-8 border-green-600">
         <h2 class="text-2xl font-bold text-green-700 mb-3">Quiz Complete!</h2>
         <p class="text-gray-600 text-lg">Your Final Score:</p>
         <h2 id="final-score" class="text-6xl font-extrabold text-indigo-600 mt-2 tracking-wider"></h2>
-        <button id="restart-btn" class="mt-6 px-8 py-3 bg-green-600 text-white font-bold rounded-full hover:bg-green-700 transition duration-200 shadow-lg shadow-green-400/50">
-            Restart Quiz
-        </button>
     </div>
 </div>
 
@@ -118,7 +112,7 @@ const quizData = [
     {q:"What does the strict equality operator '===' mean in JavaScript?", a:["Compare values only","Assign value","Compare value and type","Compare type only"], c:"Compare value and type"},
     {q:"How do you show an alert box?", a:["show('Hello')","alert('Hello')","message('Hello')","popup('Hello')"], c:"alert('Hello')"},
     {q:"Which method converts a string to an integer?", a:["int()","parseFloat()","parseInt()","stringToNumber()"], c:"parseInt()"},
-    {q:"How do you write a single-line comment in JavaScript?", a:["<!-- comment -->","// comment","/* comment */","## comment"], c:"// comment"},
+    {q:"How do you write a single-line comment in JavaScript?", a:["","// comment","/* comment */","## comment"], c:"// comment"},
     {q:"Which of the following correctly defines a JavaScript array?", a:["let x = (1, 2, 3)","let x = {1: 1, 2: 2, 3: 3}","let x = [1, 2, 3]","let x = '1, 2, 3'"], c:"let x = [1, 2, 3]"},
     {q:"What primary symbol is used as a shortcut for the jQuery library?", a:["#","$","&","@"], c:"$"},
     {q:"Which is the correct jQuery way to select an element with the ID 'box'?", a:["$('#box')","$('box')","$('.box')","document.getElementById('box')"], c:"$('#box')"},
@@ -134,13 +128,17 @@ const quizData = [
  * The event listener is attached once and persists when the element is moved.
  */
 function createSubmitButton() {
-    $submitBtn = $('<button>')
+    $submitBtn = $('<div>') // Use a div to contain the button for easier styling
+        .addClass('mt-6 block w-full sm:w-auto mx-auto');
+
+    const $button = $('<button>')
         .prop('id', 'submit-btn')
-        .addClass('px-10 py-4 bg-green-600 text-white font-bold rounded-xl text-xl transition duration-200 shadow-lg shadow-green-400/50 hover:bg-green-700 disabled:opacity-50 mt-6 block w-full sm:w-auto mx-auto')
+        .addClass('px-10 py-4 bg-green-600 text-white font-bold rounded-xl text-xl transition duration-200 shadow-lg shadow-green-400/50 hover:bg-green-700 disabled:opacity-50 block w-full sm:w-auto')
         .prop('disabled', true)
         .html('Submit Answer & Scroll <i data-lucide="chevrons-down" class="ml-2 w-5 h-5 inline-block"></i>')
-        // We use .off().on() to ensure the handler is only attached once, even if this function runs multiple times
         .off('click', handleSubmit).on('click', handleSubmit); 
+        
+    $submitBtn.append($button);
 }
 
 // --- Rendering and Structure ---
@@ -305,15 +303,15 @@ function updateQuizFlowState() {
         const hasAnswer = !!userAnswers[targetIndex];
         
         // D. Update submit button state
-        $submitBtn.prop('disabled', !hasAnswer);
-        $submitBtn.removeClass('hidden').html('Submit Answer & Scroll <i data-lucide="chevrons-down" class="ml-2 w-5 h-5 inline-block"></i>');
+        $submitBtn.find('#submit-btn').prop('disabled', !hasAnswer);
+        $submitBtn.removeClass('hidden').find('#submit-btn').html('Submit Answer & Scroll <i data-lucide="chevrons-down" class="ml-2 w-5 h-5 inline-block"></i>');
         
         $('#final-submit-container').addClass('hidden');
         
     } else {
         // All questions submitted: final state
         $('#final-submit-container').removeClass('hidden').empty().append($submitBtn);
-        $submitBtn.prop('disabled', false).html('Submit Quiz & View Results <i data-lucide="trophy" class="ml-2 w-5 h-5 inline-block"></i>');
+        $submitBtn.find('#submit-btn').prop('disabled', false).html('Submit Quiz & View Results <i data-lucide="trophy" class="ml-2 w-5 h-5 inline-block"></i>');
     }
     
     lucide.createIcons();
@@ -400,7 +398,7 @@ function showResults() {
     $('#final-score').text(`${finalScore}/${quizData.length}`);
     $('#result-container').removeClass('hidden');
 
-    // 3. Hide the main submit button
+    // 3. Hide the main submit button container (the button is detached, but container should be hidden)
     $('#final-submit-container').addClass('hidden');
     
     // 4. Scroll to the results
@@ -447,11 +445,17 @@ function initQuiz() {
     submittedState = Array(quizData.length).fill(false); 
     answeredCount = 0;
     
-    createSubmitButton(); 
+    // Recreate the button if it doesn't exist (only needed on first run, but safe)
+    if (!$submitBtn) {
+        createSubmitButton(); 
+    }
     
     $('#total-q').text(quizData.length);
     $('#result-container').addClass('hidden');
     $('#final-submit-container').addClass('hidden');
+    
+    // Ensure the permanent controls are visible after a restart
+    $('#permanent-controls').removeClass('hidden'); 
     
     renderQuiz(); 
     
@@ -470,7 +474,7 @@ $(document).ready(function() {
     initQuiz();
     lucide.createIcons();
 
-    // Restart button functionality
+    // Restart button functionality (Permanent button)
     $('#restart-btn').on('click', function() {
         initQuiz();
     });
